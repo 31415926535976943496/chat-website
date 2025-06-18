@@ -1,69 +1,66 @@
-// public/chat.js
-import { auth, db, signIn, signOutUser, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from './firebase.js';
+import { auth, db } from "./firebase.js";
+import {
+  collection, addDoc, serverTimestamp, onSnapshot, query, orderBy
+} from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 
-const loginBtn = document.getElementById('login-btn');
-const logoutBtn = document.getElementById('logout-btn');
-const userInfo = document.getElementById('user-info');
-const messagesList = document.getElementById('messages');
+const socket = io();
 const form = document.getElementById('form');
 const input = document.getElementById('input');
+const messages = document.getElementById('messages');
+const userInfo = document.getElementById('userInfo');
 
 let currentUser = null;
 
-// 監聽登入狀態變化
-auth.onAuthStateChanged(user => {
+onAuthStateChanged(auth, (user) => {
   if (user) {
     currentUser = user;
-    userInfo.textContent = `你好，${user.displayName}`;
-    loginBtn.style.display = 'none';
-    logoutBtn.style.display = 'inline-block';
-    input.disabled = false;
+    userInfo.textContent = `👤 ${user.displayName}`;
+    startListening();
   } else {
-    currentUser = null;
-    userInfo.textContent = '尚未登入';
-    loginBtn.style.display = 'inline-block';
-    logoutBtn.style.display = 'none';
-    input.disabled = true;
-    messagesList.innerHTML = '';
+    alert("請先登入");
+    window.location.href = "/index.html";
   }
 });
 
-// 登入按鈕
-loginBtn.onclick = async () => {
-  await signIn();
-};
-
-// 登出按鈕
-logoutBtn.onclick = async () => {
-  await signOutUser();
-};
-
-// 監聽 Firestore 中 messages 集合的資料變動
-const messagesCol = collection(db, 'messages');
-const q = query(messagesCol, orderBy('createdAt'));
-
-onSnapshot(q, snapshot => {
-  snapshot.docChanges().forEach(change => {
-    if (change.type === "added") {
-      const msg = change.doc.data();
-      const li = document.createElement('li');
-      li.textContent = `${msg.user}: ${msg.text}`;
-      messagesList.appendChild(li);
-      messagesList.scrollTop = messagesList.scrollHeight;
-    }
-  });
-});
-
-// 傳送訊息
-form.addEventListener('submit', async e => {
+form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!input.value.trim() || !currentUser) return;
+  if (!input.value.trim()) return;
 
-  await addDoc(messagesCol, {
-    text: input.value.trim(),
-    user: currentUser.displayName,
-    createdAt: serverTimestamp()
-  });
+  const msg = {
+    name: currentUser.displayName,
+    text: input.value,
+    timestamp: serverTimestamp()
+  };
+
+  // 存到 Firebase
+  await addDoc(collection(db, "messages"), msg);
+
+  // 發送 socket 給其他使用者
+  socket.emit('chat message', msg);
 
   input.value = '';
 });
+
+// 接收即時訊息
+socket.on('chat message', (msg) => {
+  appendMessage(msg);
+});
+
+// 從 Firebase 讀訊息
+function startListening() {
+  const q = query(collection(db, "messages"), orderBy("timestamp"));
+  onSnapshot(q, (snapshot) => {
+    messages.innerHTML = "";
+    snapshot.forEach(doc => {
+      appendMessage(doc.data());
+    });
+  });
+}
+
+function appendMessage(msg) {
+  const li = document.createElement("li");
+  li.textContent = `${msg.name}: ${msg.text}`;
+  messages.appendChild(li);
+  messages.scrollTop = messages.scrollHeight;
+}
