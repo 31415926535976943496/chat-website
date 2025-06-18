@@ -7,8 +7,10 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
+// 提供 public 資料夾的靜態資源
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Socket.io 處理
 io.on('connection', (socket) => {
   console.log('使用者連線');
 
@@ -24,3 +26,4 @@ io.on('connection', (socket) => {
 server.listen(3000, () => {
   console.log('伺服器運行於 http://localhost:3000');
 });
+
