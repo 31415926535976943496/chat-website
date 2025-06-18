@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <title>小聊天室</title>
+  <style>
+    body { font-family: Arial; background: #f0f0f0; padding: 20px; }
+    #messages { list-style-type: none; padding: 0; }
+    #messages li { padding: 5px 10px; background: #fff; margin-bottom: 5px; border-radius: 5px; }
+    form { display: flex; }
+    input { flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #ccc; }
+    button { padding: 10px; border-radius: 5px; border: none; background: #4CAF50; color: white; margin-left: 10px; }
+  </style>
+</head>
+<body>
+  <h1>小聊天室 🦖</h1>
+  <ul id="messages"></ul>
+  <form id="form" action="">
+    <input id="input" autocomplete="off" /><button>送出</button>
+  </form>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="chat.js"></script>
+</body>
+</html>
