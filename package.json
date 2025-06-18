@@ -17,5 +17,8 @@
     "url": "https://github.com/31415926535976943496/chat-website/issues"
   },
   "homepage": "https://github.com/31415926535976943496/chat-website#readme",
-  "description": ""
+  "description": "",
+  "dependencies": {
+    "express": "^5.1.0"
+  }
 }
