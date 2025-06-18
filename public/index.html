@@ -2,22 +2,21 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8" />
-  <title>小聊天室（Firebase 版）</title>
+  <title>小聊天室 🦖</title>
   <style>
-    body { font-family: Arial; background: #f0f0f0; padding: 20px; max-width: 600px; margin: auto; }
-    #messages { list-style-type: none; padding: 0; max-height: 300px; overflow-y: auto; background: #fff; border-radius: 5px; margin-bottom: 10px; }
-    #messages li { padding: 5px 10px; border-bottom: 1px solid #eee; }
-    #messages li:nth-child(odd) { background: #f9f9f9; }
-    form { display: flex; }
-    input { flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #ccc; }
-    button { padding: 10px; border-radius: 5px; border: none; background: #4CAF50; color: white; margin-left: 10px; cursor: pointer; }
-    #login-btn, #logout-btn { padding: 10px 20px; border-radius: 5px; border: none; background: #2196F3; color: white; cursor: pointer; margin-bottom: 10px; }
-    #user-info { margin-bottom: 10px; }
+    body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; max-width: 600px; margin: auto; }
+    #messages { list-style: none; padding: 0; max-height: 400px; overflow-y: auto; border: 1px solid #ccc; background: white; border-radius: 5px; }
+    #messages li { padding: 8px 12px; border-bottom: 1px solid #eee; }
+    #messages li:nth-child(odd) { background: #fafafa; }
+    #form { display: flex; margin-top: 10px; }
+    #input { flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #ccc; }
+    button { padding: 10px 20px; margin-left: 10px; border-radius: 5px; border: none; background: #4CAF50; color: white; cursor: pointer; }
+    #login-btn, #logout-btn { background: #1976d2; margin: 10px 5px 20px 0; }
+    #user-info { margin-bottom: 10px; font-weight: bold; }
   </style>
 </head>
 <body>
-
-  <h1>小聊天室 🦖（Firebase 版）</h1>
+  <h1>小聊天室 🦖</h1>
 
   <div id="user-info">尚未登入</div>
   <button id="login-btn">用 Google 登入</button>
@@ -25,12 +24,13 @@
 
   <ul id="messages"></ul>
 
-  <form id="form" action="">
-    <input id="input" autocomplete="off" placeholder="請先登入才能發言" disabled />
-    <button disabled>送出</button>
+  <form id="form">
+    <input id="input" autocomplete="off" placeholder="輸入訊息..." disabled />
+    <button>送出</button>
   </form>
 
-  <!-- Firebase SDK -->
+  <script type="module" src="firebase.js"></script>
   <script type="module" src="chat.js"></script>
 </body>
 </html>
+
