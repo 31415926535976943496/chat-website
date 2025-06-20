@@ -97,18 +97,26 @@
   const inviteSel = document.getElementById('invite-friend');
   const adminPanel= document.getElementById('admin-panel');
 
+  const usernameEl=document.getElementById('username');
+  const passwordEl=document.getElementById('password');
+
   /* ==== 狀態 ==== */
-  let token   = '';         // 用來在 header 帶認證
+  let token   = '';
   let socket  = null;
   let myName  = '';
   let currentRoom = '';
 
-  /* ==== 登入 / 註冊 ==== */
+  /* ==== API helper ==== */
   async function api(url,data){
-    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const res=await fetch(url,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(data)
+    });
     return res.json();
   }
 
+  /* ==== 登入 ==== */
   document.getElementById('login-form').addEventListener('submit', async e=>{
     e.preventDefault();
     const username=usernameEl.value.trim();
@@ -120,17 +128,19 @@
     }else alert(r.msg);
   });
 
+  /* ==== 註冊 ==== */
   document.getElementById('btn-register').addEventListener('click', async ()=>{
     const username=usernameEl.value.trim();
     const password=passwordEl.value;
+    if(!username || !password){
+      alert('帳號密碼不可空白');
+      return;
+    }
     const r = await api('/api/register',{username,password});
-    alert(r.ok?'註冊成功，請登入':r.msg);
+    alert(r.ok ? '註冊成功，請登入' : r.msg);
   });
 
-  const usernameEl=document.getElementById('username');
-  const passwordEl=document.getElementById('password');
-
-  /* ==== 登入後 ==== */
+  /* ==== 登入後設定 ==== */
   function afterLogin(){
     loginPage.classList.remove('active');
     chatPage.classList.add('active');
@@ -145,7 +155,6 @@
       list.forEach(f=>{
         const d=document.createElement('div');
         d.className='item'; d.textContent=f;
-        d.onclick=()=>{};
         friendsEl.appendChild(d);
 
         const opt=document.createElement('option');
@@ -170,23 +179,23 @@
 
     socket.on('system', msg=>appendMsg(`[系統] ${msg}`));
 
-    /* UI handlers */
-    document.getElementById('btn-add-friend').onclick = ()=> {
+    /* 按鈕事件 */
+    document.getElementById('btn-add-friend').onclick = ()=>{
       const f = document.getElementById('new-friend').value.trim();
       if(f) socket.emit('addFriend',f);
     };
 
-    document.getElementById('btn-create-room').onclick = ()=> {
+    document.getElementById('btn-create-room').onclick = ()=>{
       const n = document.getElementById('new-room').value.trim();
       if(n) socket.emit('createRoom',n);
     };
 
-    document.getElementById('btn-invite').onclick = ()=> {
+    document.getElementById('btn-invite').onclick = ()=>{
       const f = inviteSel.value;
       if(currentRoom && f) socket.emit('invite', {roomId:currentRoom, friend:f});
     };
 
-    document.getElementById('msg-form').addEventListener('submit',e=>{
+    document.getElementById('msg-form').addEventListener('submit', e=>{
       e.preventDefault();
       const text=document.getElementById('msg').value.trim();
       if(text && currentRoom){
@@ -195,7 +204,7 @@
       }
     });
 
-    /* admin */
+    /* 管理員功能 */
     document.getElementById('btn-admin-add').onclick=()=>{
       socket.emit('adminAdd', {
         username: document.getElementById('admin-user').value.trim(),
@@ -207,6 +216,7 @@
     };
   }
 
+  /* 切換房間 */
   function joinRoom(id,name){
     currentRoom=id;
     roomTitle.textContent=`房間：${name}`;
@@ -215,6 +225,7 @@
     socket.emit('joinRoom',id);
   }
 
+  /* 加訊息 */
   function appendMsg(text){
     const d=document.createElement('div');
     d.textContent=text;
@@ -222,5 +233,6 @@
     messagesEl.scrollTop=messagesEl.scrollHeight;
   }
 </script>
+
 </body>
 </html>

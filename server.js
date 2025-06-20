@@ -1,125 +1,137 @@
 const express = require('express');
 const app = express();
 const http  = require('http').createServer(app);
-const io    = require('socket.io')(http, {cors:{origin:'*'}});
+const io    = require('socket.io')(http, { cors: { origin: '*' } });
 app.use(express.static(__dirname));
 app.use(express.json());
 
-/* ==== in‑memory DB ==== */
-const users = {};      // username -> {password, friends:Set<string>, sockets:Set<string>}
-const rooms = {};      // roomId   -> {name, members:Set<string>}
-let   roomSeq = 1;
+/* ==== in-memory DB ==== */
+const users = {
+  admin: { password: '123456', friends: new Set(), sockets: new Set() }
+};
+const rooms = {};
+let roomSeq = 1;
 
 /* ==== Helper ==== */
-function genRoomId(){ return 'r'+roomSeq++; }
-function safe(fn){ return (req,res)=>{ try{fn(req,res);}catch(e){res.json({ok:false,msg:e.message});} }}
+function genRoomId() { return 'r' + roomSeq++; }
+function safe(fn) { 
+  return (req, res) => { 
+    try { fn(req, res); } 
+    catch(e) { res.json({ ok: false, msg: e.message }); } 
+  }; 
+}
 
 /* ==== REST: 註冊 / 登入 ==== */
-app.post('/api/register', safe((req,res)=>{
-  const {username,password}=req.body;
-  if(!username||!password) throw Error('帳號或密碼空白');
-  if(users[username]) throw Error('帳號已存在');
-  users[username]={password,friends:new Set(),sockets:new Set()};
-  res.json({ok:true});
+app.post('/api/register', safe((req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) throw Error('帳號或密碼空白');
+  if (users[username]) throw Error('帳號已存在');
+  users[username] = { password, friends: new Set(), sockets: new Set() };
+  console.log('註冊後 users:', users);
+  res.json({ ok: true });
 }));
 
-app.post('/api/login', safe((req,res)=>{
-  const {username,password}=req.body;
-  if(!users[username]||users[username].password!==password) throw Error('帳密錯誤');
-  res.json({ok:true,token:username});      // token 就直接是 username（示範用）
+app.post('/api/login', safe((req, res) => {
+  const { username, password } = req.body;
+  console.log('登入請求:', username, password);
+  if (!users[username] || users[username].password !== password) throw Error('帳密錯誤');
+  res.json({ ok: true, token: username });
 }));
 
 /* ==== Socket.io ==== */
-io.use((socket,next)=>{
+io.use((socket, next) => {
   const username = socket.handshake.auth.token;
-  if(!users[username]) return next(new Error('未授權'));
+  if (!users[username]) return next(new Error('未授權'));
   socket.username = username;
   next();
 });
 
-io.on('connection', (socket)=>{
+io.on('connection', (socket) => {
   const me = socket.username;
   users[me].sockets.add(socket.id);
 
-  /* 初始資料 */
+  // 發送好友列表跟房間列表給用戶
   emitFriends(me);
   emitRooms(me);
 
-  /* 新增好友（雙向） */
-  socket.on('addFriend', friend=>{
-    if(users[friend] && friend!==me){
+  socket.on('addFriend', friend => {
+    if (users[friend] && friend !== me) {
       users[me].friends.add(friend);
       users[friend].friends.add(me);
-      emitFriends(me); emitFriends(friend);
+      emitFriends(me);
+      emitFriends(friend);
     }
   });
 
-  /* 建立房間 */
-  socket.on('createRoom', name=>{
-    const id=genRoomId();
-    rooms[id]={name,members:new Set([me])};
+  socket.on('createRoom', name => {
+    const id = genRoomId();
+    rooms[id] = { name, members: new Set([me]) };
     emitRooms(me);
   });
 
-  /* 加入 / 邀請 */
-  socket.on('joinRoom', id=>{
-    if(rooms[id] && rooms[id].members.has(me)){
+  socket.on('joinRoom', id => {
+    if (rooms[id] && rooms[id].members.has(me)) {
       socket.join(id);
       socket.emit('system', `已進入房間 ${rooms[id].name}`);
     }
   });
-  socket.on('invite', ({roomId,friend})=>{
-    if(rooms[roomId] && rooms[roomId].members.has(me) && users[friend]){
+
+  socket.on('invite', ({ roomId, friend }) => {
+    if (rooms[roomId] && rooms[roomId].members.has(me) && users[friend]) {
       rooms[roomId].members.add(friend);
       emitRooms(friend);
-      notifyUser(friend,'system',`${me} 邀請你加入房間「${rooms[roomId].name}」`);
+      notifyUser(friend, 'system', `${me} 邀請你加入房間「${rooms[roomId].name}」`);
     }
   });
 
-  /* 發訊息 */
-  socket.on('chat', ({roomId,text})=>{
-    if(rooms[roomId] && rooms[roomId].members.has(me)){
-      io.to(roomId).emit('message',{room:roomId,from:me,text});
+  socket.on('chat', ({ roomId, text }) => {
+    if (rooms[roomId] && rooms[roomId].members.has(me)) {
+      io.to(roomId).emit('message', { room: roomId, from: me, text });
     }
   });
 
-  /* —— 管理員功能 —— */
-  socket.on('adminAdd', ({username,password})=>{
-    if(me!=='admin') return;
-    if(!users[username]) users[username]={password,friends:new Set(),sockets:new Set()};
-    notifyAdmins(`新增帳號 ${username}`);
+  // 管理員功能
+  socket.on('adminAdd', ({ username, password }) => {
+    if (me !== 'admin') return;
+    if (!users[username]) {
+      users[username] = { password, friends: new Set(), sockets: new Set() };
+      notifyAdmins(`新增帳號 ${username}`);
+    }
   });
-  socket.on('adminDel', username=>{
-    if(me!=='admin'||username==='admin') return;
-    if(users[username]){
-      /* 踢掉socket */
-      users[username].sockets.forEach(sid=>io.sockets.sockets.get(sid)?.disconnect());
+
+  socket.on('adminDel', username => {
+    if (me !== 'admin' || username === 'admin') return;
+    if (users[username]) {
+      users[username].sockets.forEach(sid => io.sockets.sockets.get(sid)?.disconnect());
       delete users[username];
       notifyAdmins(`刪除帳號 ${username}`);
     }
   });
 
-  socket.on('disconnect', ()=>users[me].sockets.delete(socket.id));
+  socket.on('disconnect', () => {
+    users[me].sockets.delete(socket.id);
+  });
 });
 
 /* ==== 公用推播 ==== */
-function emitFriends(u){
-  const list=[...users[u].friends];
-  users[u].sockets.forEach(sid=>io.to(sid).emit('friends',list));
+function emitFriends(u) {
+  const list = [...users[u].friends];
+  users[u].sockets.forEach(sid => io.to(sid).emit('friends', list));
 }
-function emitRooms(u){
-  const list=[];
-  for(const [id,r] of Object.entries(rooms)) if(r.members.has(u)){
-    list.push({id,name:r.name});
+function emitRooms(u) {
+  const list = [];
+  for (const [id, r] of Object.entries(rooms)) {
+    if (r.members.has(u)) list.push({ id, name: r.name });
   }
-  users[u].sockets.forEach(sid=>io.to(sid).emit('rooms',list));
+  users[u].sockets.forEach(sid => io.to(sid).emit('rooms', list));
 }
-function notifyUser(u,evt,...args){
-  users[u]?.sockets.forEach(sid=>io.to(sid).emit(evt,...args));
+function notifyUser(u, evt, ...args) {
+  users[u]?.sockets.forEach(sid => io.to(sid).emit(evt, ...args));
 }
-function notifyAdmins(msg){ notifyUser('admin','system',msg); }
+function notifyAdmins(msg) {
+  notifyUser('admin', 'system', msg);
+}
 
 /* ==== 啟動 ==== */
-const PORT=process.env.PORT||3000;
-http.listen(PORT,()=>console.log(`Server on http://localhost:${PORT}`));
-
+const PORT = process.env.PORT || 3000;
+http.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
