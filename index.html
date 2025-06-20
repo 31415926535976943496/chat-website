@@ -1,237 +1,428 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <title>私人訊息聊天室</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:"Segoe UI",sans-serif;background:#e8f0fe;height:100vh;display:flex}
-    /* ---- 通用 ---- */
-    button{cursor:pointer;border:none}
-    input,button,select{font-size:1rem}
-
-    /* ---- 登入 ---- */
-    #page-login,#page-app{width:100%;display:none;align-items:center;justify-content:center}
-    #page-login.active,#page-app.active{display:flex;flex-direction:column}
-    #login-card{background:#fff;padding:32px;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,.1);width:300px;display:flex;flex-direction:column;gap:12px}
-    #login-card input{padding:10px;border:1px solid #ccc;border-radius:6px}
-    #login-card button{padding:10px;border-radius:6px;background:#3b82f6;color:#fff;transition:.2s}
-    #login-card button:hover{background:#2563eb}
-    small{margin-top:6px;font-size:.85rem;color:#555}
-
-    /* ---- 主要佈局 ---- */
-    #page-app{flex-direction:column;padding:10px 0}
-    #main{flex:1;display:flex;width:100%;max-width:1200px;margin:auto;box-shadow:0 6px 18px rgba(0,0,0,.08);border-radius:12px;overflow:hidden;background:#fff}
-
-    /* ---- 左側側邊欄 ---- */
-    #sidebar{width:260px;display:flex;flex-direction:column;border-right:1px solid #d1d5db;background:#f9fafe}
-    #sidebar-header{padding:12px;border-bottom:1px solid #d1d5db;display:flex;flex-direction:column;gap:8px}
-    #search-friend{padding:8px;border:1px solid #cbd5e1;border-radius:6px}
-    #sidebar-title{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:1.05rem}
-    #btn-create-room{background:#3b82f6;color:#fff;width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:.2s}
-    #btn-create-room:hover{background:#2563eb}
-    #friend-room-list{flex:1;overflow-y:auto}
-    .item{padding:10px 14px;border-bottom:1px solid #e5e7eb;cursor:pointer}
-    .item:hover{background:#e0e7ff}
-    .item.active{background:#bfdbfe;font-weight:700}
-
-    /* ---- 右側聊天 ---- */
-    #chat-area{flex:1;display:flex;flex-direction:column}
-    #chat-header{padding:14px;border-bottom:1px solid #d1d5db;font-weight:700;background:#f4f5f7}
-    #messages{flex:1;padding:16px;overflow-y:auto}
-    #msg-form{display:flex;padding:12px;border-top:1px solid #d1d5db;background:#f9fafb}
-    #msg-input{flex:1;padding:10px;border:1px solid #cbd5e1;border-radius:6px}
-    #send-btn{margin-left:10px;padding:10px 16px;border-radius:6px;background:#2563eb;color:#fff;transition:.2s}
-    #send-btn:hover{background:#1e40af}
-
-    /* ---- 管理員 ---- */
-    #admin-panel{width:100%;max-width:1200px;background:#fee2e2;border-top:4px solid #ef4444;border-radius:8px;margin:8px auto 0;padding:14px;display:none}
-    #admin-panel input{padding:6px;border:1px solid #ef4444;border-radius:4px;margin-right:6px}
-    #admin-panel button{padding:6px 10px;background:#ef4444;color:#fff;border-radius:4px;margin-right:6px}
-  </style>
+<meta charset="UTF-8" />
+<title>私人訊息聊天室</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  body,html{height:100%;margin:0;font-family:Segoe UI,sans-serif;display:flex;}
+  #page-login, #page-app{width:100%;height:100%;display:none;flex-direction:column;align-items:center;justify-content:center;}
+  #page-login.active, #page-app.active{display:flex;}
+  #login-card {
+    background:#fff;padding:30px;border-radius:10px;box-shadow:0 5px 15px rgba(0,0,0,0.1);
+    width:300px;display:flex;flex-direction:column;gap:12px;
+  }
+  #login-card input {
+    padding:10px;border:1px solid #ccc;border-radius:6px;font-size:1rem;
+  }
+  #login-card button {
+    padding:10px;border:none;border-radius:6px;font-size:1rem;color:#fff;cursor:pointer;
+    background:#3b82f6;transition:background-color .3s;
+  }
+  #login-card button:hover {
+    background:#2563eb;
+  }
+  small {color:#666;font-size:0.85rem;}
+  /* 主頁 */
+  #main {
+    display:flex;flex:1;width:100%;max-width:1200px;margin:10px auto;border-radius:12px;overflow:hidden;
+    box-shadow:0 6px 18px rgba(0,0,0,0.08);background:#fff;
+  }
+  #sidebar {
+    width:280px; background:#f0f4ff; display:flex; flex-direction: column; padding:10px;
+    border-right:1px solid #ccc; overflow-y:auto; position:relative;
+  }
+  #sidebar-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom:10px;
+  }
+  #sidebar-header h2 {
+    margin: 0; font-weight:700; font-size:1.3rem;
+  }
+  #btn-menu {
+    background:#4f6ef7; border:none; color:#fff; font-weight:700;
+    border-radius:4px; width:30px; height:30px; cursor:pointer;
+    position: relative;
+  }
+  #dropdown-menu {
+    display:none; position:absolute; top:40px; right:10px;
+    background:#fff; border:1px solid #ccc; border-radius:6px;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+    z-index:100;
+    width:150px;
+  }
+  #dropdown-menu div {
+    padding:8px 12px; cursor:pointer; user-select:none;
+  }
+  #dropdown-menu div:hover {
+    background:#4f6ef7; color:#fff;
+  }
+  #input-area {
+    margin-bottom:10px; display:none;
+  }
+  #input-area input {
+    width: calc(100% - 70px);
+    padding:6px 10px;
+    border:1px solid #aaa;
+    border-radius:4px 0 0 4px;
+    font-size:1rem;
+  }
+  #input-area button {
+    width: 60px;
+    padding:6px 10px;
+    border:none;
+    background:#4f6ef7;
+    color:#fff;
+    border-radius:0 4px 4px 0;
+    cursor:pointer;
+    transition: background-color 0.2s ease;
+  }
+  #input-area button:hover {
+    background:#3a54c7;
+  }
+  #friend-list, #room-list {
+    flex-grow: 1;
+    overflow-y: auto;
+  }
+  .item {
+    padding:8px 12px; margin-bottom:6px; background:#fff; border-radius:6px; cursor:pointer;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.1);
+  }
+  .item:hover {
+    background:#d0dbff;
+  }
+  .item.active {
+    background:#627bff; color:#fff;
+  }
+  #chat-area {
+    flex:1; display:flex; flex-direction: column;
+  }
+  #chat-header {
+    padding:12px; font-weight:700; border-bottom:1px solid #ccc;
+  }
+  #messages {
+    flex:1; padding:10px; overflow-y:auto; background:#fafafa;
+  }
+  #msg-form {
+    display:flex; padding:10px; border-top:1px solid #ccc; background:#fff;
+  }
+  #msg-input {
+    flex:1; padding:8px 12px; font-size:1rem; border:1px solid #aaa; border-radius:6px;
+  }
+  #send-btn {
+    margin-left:8px; padding:8px 16px; background:#4f6ef7; border:none; color:#fff;
+    border-radius:6px; cursor:pointer; transition: background-color 0.2s ease;
+  }
+  #send-btn:hover {
+    background:#3a54c7;
+  }
+  #admin-panel {
+    padding:10px; background:#fee2e2; border-top:3px solid #ef4444; margin-top:10px;
+  }
+</style>
 </head>
 <body>
-  <!-- 登入頁 -->
-  <section id="page-login" class="active">
-    <div id="login-card">
-      <h2 style="text-align:center">登入 / 註冊</h2>
-      <input id="username" placeholder="帳號" required>
-      <input id="password" type="password" placeholder="密碼" required>
-      <button id="login-btn">登入</button>
-      <button id="register-btn" style="background:#10b981">註冊</button>
-      <small>管理員帳號：<b>admin / 123456</b></small>
-    </div>
-  </section>
 
-  <!-- 主頁 -->
-  <section id="page-app">
-    <h2 id="welcome" style="text-align:center;margin-bottom:8px"></h2>
-    <div id="main">
-      <!-- 側邊欄 -->
-      <aside id="sidebar">
-        <div id="sidebar-header">
-          <input id="search-friend" placeholder="搜尋好友...">
-          <div id="sidebar-title">
-            <span>私人訊息</span>
-            <button id="btn-create-room" title="新增聊天室">＋</button>
-          </div>
-        </div>
-        <div id="friend-room-list">
-          <!-- 動態插入好友 & 房間 -->
-        </div>
-      </aside>
+<!-- 登入頁 -->
+<section id="page-login" class="active">
+  <div id="login-card">
+    <h2 style="text-align:center">登入 / 註冊</h2>
+    <input id="username" placeholder="帳號" required />
+    <input id="password" type="password" placeholder="密碼" required />
+    <button id="login-btn">登入</button>
+    <button id="register-btn" style="background:#10b981">註冊</button>
+    <small>管理員帳號：<b>admin / 123456</b></small>
+  </div>
+</section>
 
-      <!-- 聊天區 -->
-      <div id="chat-area">
-        <div id="chat-header">請選擇聊天室</div>
-        <div id="messages"></div>
-        <form id="msg-form">
-          <input id="msg-input" autocomplete="off" placeholder="輸入訊息...">
-          <button id="send-btn">送出</button>
-        </form>
+<!-- 主頁 -->
+<section id="page-app">
+  <h2 id="welcome" style="text-align:center;margin:8px 0;"></h2>
+  <div id="main">
+    <aside id="sidebar">
+      <div id="sidebar-header">
+        <h2>私人訊息</h2>
+        <button id="btn-menu" title="新增選項">＋</button>
+        <div id="dropdown-menu">
+          <div id="menu-create-room">創建聊天室</div>
+          <div id="menu-add-friend">加好友</div>
+        </div>
       </div>
+
+      <div id="input-area">
+        <input type="text" id="input-text" placeholder="" />
+        <button id="input-submit">送出</button>
+      </div>
+
+      <div id="friend-list"></div>
+      <div id="room-list"></div>
+
+      <div id="admin-panel" style="display:none;">
+        <h3>管理員面板</h3>
+        <input id="admin-add-user" placeholder="新增帳號" />
+        <input id="admin-add-pass" placeholder="密碼" />
+        <button id="admin-add-btn">新增</button><br /><br />
+        <input id="admin-del-user" placeholder="刪除帳號" />
+        <button id="admin-del-btn">刪除</button>
+      </div>
+    </aside>
+
+    <div id="chat-area">
+      <div id="chat-header">請選擇聊天室或好友</div>
+      <div id="messages"></div>
+      <form id="msg-form">
+        <input id="msg-input" autocomplete="off" placeholder="輸入訊息..." />
+        <button id="send-btn">送出</button>
+      </form>
     </div>
+  </div>
+</section>
 
-    <!-- 管理員面板 -->
-    <div id="admin-panel">
-      <h3 style="margin-bottom:6px">管理員面板</h3>
-      <input id="admin-add-user" placeholder="帳號">
-      <input id="admin-add-pass" placeholder="密碼">
-      <button id="admin-add-btn">新增帳號</button>
-      <input id="admin-del-user" placeholder="欲刪除帳號">
-      <button id="admin-del-btn">刪除帳號</button>
-    </div>
-  </section>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  // 基本狀態
+  let myName = '';
+  let token = '';
+  let socket = null;
+  let currentRoom = '';
+  let allFriends = [];
+  let allRooms = [];
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script>
-    /* ========== DOM ========== */
-    const pgLogin = document.getElementById('page-login');
-    const pgApp   = document.getElementById('page-app');
-    const welcome = document.getElementById('welcome');
+  // DOM
+  const pgLogin = document.getElementById('page-login');
+  const pgApp = document.getElementById('page-app');
+  const welcome = document.getElementById('welcome');
 
-    const usernameEl = document.getElementById('username');
-    const passwordEl = document.getElementById('password');
-    const loginBtn   = document.getElementById('login-btn');
-    const registerBtn= document.getElementById('register-btn');
+  const usernameEl = document.getElementById('username');
+  const passwordEl = document.getElementById('password');
+  const loginBtn = document.getElementById('login-btn');
+  const registerBtn = document.getElementById('register-btn');
 
-    const sidebarList= document.getElementById('friend-room-list');
-    const searchInput= document.getElementById('search-friend');
-    const createRoomBtn=document.getElementById('btn-create-room');
+  const btnMenu = document.getElementById('btn-menu');
+  const dropdownMenu = document.getElementById('dropdown-menu');
+  const inputArea = document.getElementById('input-area');
+  const inputText = document.getElementById('input-text');
+  const inputSubmit = document.getElementById('input-submit');
 
-    const chatHeader = document.getElementById('chat-header');
-    const messagesEl = document.getElementById('messages');
-    const msgForm    = document.getElementById('msg-form');
-    const msgInput   = document.getElementById('msg-input');
+  const friendListEl = document.getElementById('friend-list');
+  const roomListEl = document.getElementById('room-list');
+  const chatHeaderEl = document.getElementById('chat-header');
+  const messagesEl = document.getElementById('messages');
+  const msgForm = document.getElementById('msg-form');
+  const msgInput = document.getElementById('msg-input');
 
-    const adminPanel = document.getElementById('admin-panel');
+  const adminPanel = document.getElementById('admin-panel');
+  const adminAddUser = document.getElementById('admin-add-user');
+  const adminAddPass = document.getElementById('admin-add-pass');
+  const adminAddBtn = document.getElementById('admin-add-btn');
+  const adminDelUser = document.getElementById('admin-del-user');
+  const adminDelBtn = document.getElementById('admin-del-btn');
 
-    /* ========== 狀態 ========== */
-    let myName = '';
-    let token  = '';
-    let socket = null;
-    let currentRoom = '';
-    let allFriends = [];
-    let allRooms   = [];
-
-    /* ====== API ====== */
-    async function api(url,data){
-      const res = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-      return res.json();
+  // 登入
+  loginBtn.onclick = async () => {
+    const username = usernameEl.value.trim();
+    const password = passwordEl.value;
+    if (!username || !password) return alert('請輸入帳號和密碼');
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      token = data.token;
+      myName = token;
+      afterLogin();
+    } else {
+      alert(data.msg);
     }
+  };
 
-    /* ====== 登入、註冊 ====== */
-    loginBtn.onclick = async ()=>{
-      const r=await api('/api/login',{username:usernameEl.value.trim(),password:passwordEl.value});
-      if(r.ok){ token=r.token; myName=token; afterLogin(); } else alert(r.msg);
+  // 註冊
+  registerBtn.onclick = async () => {
+    const username = usernameEl.value.trim();
+    const password = passwordEl.value;
+    if (!username || !password) return alert('請輸入帳號和密碼');
+    const res = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    alert(data.ok ? '註冊成功，請登入' : data.msg);
+  };
+
+  // 登入後
+  function afterLogin() {
+    pgLogin.classList.remove('active');
+    pgApp.classList.add('active');
+    welcome.textContent = `歡迎，${myName}`;
+    if (myName === 'admin') adminPanel.style.display = 'block';
+    else adminPanel.style.display = 'none';
+
+    socket = io({ auth: { token } });
+
+    socket.on('friends', (list) => {
+      allFriends = list;
+      renderLists();
+    });
+    socket.on('rooms', (list) => {
+      allRooms = list;
+      renderLists();
+    });
+    socket.on('system', (msg) => appendMsg(`[系統] ${msg}`));
+    socket.on('message', (data) => {
+      if (data.room === currentRoom) appendMsg(`${data.from}: ${data.text}`);
+    });
+
+    // 「＋」按鈕切換下拉選單
+    btnMenu.onclick = (e) => {
+      e.stopPropagation();
+      dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
+      inputArea.style.display = 'none'; // 收起輸入框
     };
-    registerBtn.onclick = async ()=>{
-      const r=await api('/api/register',{username:usernameEl.value.trim(),password:passwordEl.value});
-      alert(r.ok? '註冊成功，請登入':r.msg);
+
+    // 點頁面其他地方收起下拉選單和輸入框
+    document.body.onclick = () => {
+      dropdownMenu.style.display = 'none';
+      inputArea.style.display = 'none';
     };
 
-    /* ====== 登入後 ====== */
-    function afterLogin(){
-      pgLogin.classList.remove('active');
-      pgApp.classList.add('active');
-      welcome.textContent=`歡迎，${myName}`;
-      if(myName==='admin') adminPanel.style.display='block';
+    // 下拉選單-創建聊天室
+    document.getElementById('menu-create-room').onclick = (e) => {
+      e.stopPropagation();
+      dropdownMenu.style.display = 'none';
+      inputArea.style.display = 'flex';
+      inputText.placeholder = '輸入聊天室名稱';
+      currentInputAction = 'createRoom';
+      inputText.value = '';
+      inputText.focus();
+    };
 
-      socket = io({auth:{token}});
+    // 下拉選單-加好友
+    document.getElementById('menu-add-friend').onclick = (e) => {
+      e.stopPropagation();
+      dropdownMenu.style.display = 'none';
+      inputArea.style.display = 'flex';
+      inputText.placeholder = '輸入好友名稱';
+      currentInputAction = 'addFriend';
+      inputText.value = '';
+      inputText.focus();
+    };
 
-      socket.on('friends', list=>{ allFriends=list; renderSidebar(); });
-      socket.on('rooms',   list=>{ allRooms=list;   renderSidebar(); });
-      socket.on('system',  msg=>appendMsg(`[系統] ${msg}`));
-      socket.on('message', data=>{ if(data.room===currentRoom) appendMsg(`${data.from}: ${data.text}`); });
+    // 送出輸入框內容
+    inputSubmit.onclick = () => {
+      const val = inputText.value.trim();
+      if (!val) return alert('請輸入內容');
+      if (currentInputAction === 'createRoom') {
+        if (allRooms.some((r) => r.name === val)) {
+          alert('聊天室名稱已存在');
+          return;
+        }
+        socket.emit('createRoom', val);
+      } else if (currentInputAction === 'addFriend') {
+        if (val === myName) {
+          alert('不能加自己為好友');
+          return;
+        }
+        if (allFriends.includes(val)) {
+          alert('好友已存在');
+          return;
+        }
+        socket.emit('addFriend', val);
+      }
+      inputArea.style.display = 'none';
+      inputText.value = '';
+    };
 
-      /* 搜尋過濾 */
-      searchInput.addEventListener('input', renderSidebar);
+    // 點好友建立聊天室（如果沒聊天室就建立，已有直接加入）
+    friendListEl.onclick = (e) => {
+      if (!e.target.classList.contains('item')) return;
+      const friendName = e.target.textContent;
+      let roomName = `和 ${friendName} 聊天`;
+      let room = allRooms.find((r) => r.name === roomName);
+      if (room) {
+        joinRoom(room.id, room.name);
+      } else {
+        socket.emit('createRoom', roomName);
+      }
+    };
 
-      /* 建立聊天室按鈕 */
-      createRoomBtn.onclick = ()=>{
-        const roomName = prompt('輸入新的聊天室名稱：');
-        if(roomName) socket.emit('createRoom', roomName.trim());
-      };
+    // 點聊天室切換
+    roomListEl.onclick = (e) => {
+      if (!e.target.classList.contains('item')) return;
+      const roomName = e.target.textContent;
+      const room = allRooms.find((r) => r.name === roomName);
+      if (room) joinRoom(room.id, room.name);
+    };
 
-      /* 發送訊息 */
-      msgForm.addEventListener('submit', e=>{
-        e.preventDefault();
-        const txt=msgInput.value.trim();
-        if(txt && currentRoom){ socket.emit('chat',{roomId:currentRoom,text:txt}); msgInput.value=''; }
-      });
+    // 發送訊息
+    msgForm.onsubmit = (e) => {
+      e.preventDefault();
+      const txt = msgInput.value.trim();
+      if (txt && currentRoom) {
+        socket.emit('chat', { roomId: currentRoom, text: txt });
+        msgInput.value = '';
+      }
+    };
 
-      /* 管理員功能 */
-      document.getElementById('admin-add-btn').onclick=()=>{
-        socket.emit('adminAdd',{username:document.getElementById('admin-add-user').value.trim(),password:document.getElementById('admin-add-pass').value});
-      };
-      document.getElementById('admin-del-btn').onclick=()=>{
-        socket.emit('adminDel',document.getElementById('admin-del-user').value.trim());
-      };
-    }
+    // 管理員面板事件
+    adminAddBtn.onclick = () => {
+      const user = adminAddUser.value.trim();
+      const pass = adminAddPass.value.trim();
+      if (user && pass) {
+        socket.emit('adminAdd', { username: user, password: pass });
+      }
+    };
+    adminDelBtn.onclick = () => {
+      const user = adminDelUser.value.trim();
+      if (user) {
+        socket.emit('adminDel', user);
+      }
+    };
+  }
 
-    /* ====== UI 渲染 ====== */
-    function renderSidebar(){
-      const kw = searchInput.value.trim().toLowerCase();
-      sidebarList.innerHTML='';
+  // 重新整理好友與聊天室列表
+  function renderLists() {
+    friendListEl.innerHTML = '';
+    allFriends.forEach((f) => {
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.textContent = f;
+      friendListEl.appendChild(div);
+    });
 
-      // 好友
-      const friendHeader=document.createElement('div');friendHeader.style.cssText='padding:8px 14px;font-weight:700;color:#6366f1;border-bottom:1px solid #e5e7eb';friendHeader.textContent='好友';
-      sidebarList.appendChild(friendHeader);
-      allFriends.filter(f=>f.toLowerCase().includes(kw)).forEach(f=>{
-        const div=document.createElement('div');div.className='item';div.textContent=f;
-        div.onclick=()=>createOrOpenFriendRoom(f);
-        sidebarList.appendChild(div);
-      });
+    roomListEl.innerHTML = '';
+    allRooms.forEach((r) => {
+      const div = document.createElement('div');
+      div.className = 'item' + (currentRoom === r.id ? ' active' : '');
+      div.textContent = r.name;
+      roomListEl.appendChild(div);
+    });
+  }
 
-      // 聊天室
-      const roomHeader=document.createElement('div');roomHeader.style.cssText='padding:8px 14px;font-weight:700;color:#6366f1;border-bottom:1px solid #e5e7eb;margin-top:4px';roomHeader.textContent='聊天室';
-      sidebarList.appendChild(roomHeader);
-      allRooms.filter(r=>r.name.toLowerCase().includes(kw)).forEach(r=>{
-        const div=document.createElement('div');div.className='item';if(r.id===currentRoom) div.classList.add('active');
-        div.textContent=r.name;div.onclick=()=>joinRoom(r.id,r.name);
-        sidebarList.appendChild(div);
-      });
-    }
+  // 切換聊天室
+  function joinRoom(id, name) {
+    currentRoom = id;
+    chatHeaderEl.textContent = name;
+    messagesEl.innerHTML = '';
+    socket.emit('joinRoom', id);
+    renderLists();
+  }
 
-    /* ====== 功能方法 ====== */
-    function createOrOpenFriendRoom(friend){
-      const roomName=`和 ${friend} 聊天`;
-      const exist=allRooms.find(r=>r.name===roomName);
-      if(exist){ joinRoom(exist.id,exist.name); return; }
-      socket.emit('createRoom',roomName);
-    }
+  // 新增訊息到聊天區
+  function appendMsg(txt) {
+    const div = document.createElement('div');
+    div.textContent = txt;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
 
-    function joinRoom(id,name){
-      currentRoom=id; chatHeader.textContent=name; messagesEl.innerHTML='';
-      socket.emit('joinRoom',id);
-      renderSidebar();
-    }
+  let currentInputAction = '';
 
-    function appendMsg(text){
-      const div=document.createElement('div');div.textContent=text;messagesEl.appendChild(div);
-      messagesEl.scrollTop=messagesEl.scrollHeight;
-    }
-  </script>
+  // 啟動測試：可改成登入前先做
+  // login('admin','123456');
+
+</script>
 </body>
 </html>
+
