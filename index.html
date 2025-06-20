@@ -1,102 +1,226 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <title>登入聊天室</title>
+  <meta charset="UTF-8" />
+  <title>好友制聊天室</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: sans-serif; margin: 0; background: #f0f0f0; }
-    #loginPage, #chatPage { display: none; height: 100vh; justify-content: center; align-items: center; }
-    #loginPage.active, #chatPage.active { display: flex; flex-direction: column; }
+    #page-login, #page-chat { display: none; height: 100vh; justify-content: center; align-items: center; }
+    #page-login.active, #page-chat.active { display: flex; flex-direction: column; padding: 20px; }
 
-    #loginForm, #msgForm { display: flex; flex-direction: column; gap: 10px; }
-    input, button { padding: 10px; font-size: 1em; }
-
-    #chatBox { flex: 1; overflow-y: auto; padding: 10px; border: 1px solid #ccc; width: 100%; max-height: 300px; background: #fff; }
+    h2 { margin: 10px 0; }
+    form { display: flex; flex-direction: column; gap: 10px; width: 260px; }
+    input, button, select { padding: 10px; font-size: 1em; }
+    #main { display: flex; gap: 20px; }
+    #friends, #rooms { width: 200px; background:#fff; border:1px solid #ccc; padding:10px; height:300px; overflow-y:auto; }
+    #chat-box { flex:1; display:flex; flex-direction:column; width:420px; }
+    #messages { flex:1; border:1px solid #ccc; background:#fff; padding:10px; overflow-y:auto; }
+    #msg-form { display:flex; gap:5px; margin-top:5px; }
+    #msg { flex:1; }
+    .item { padding:4px; cursor:pointer; border-bottom:1px solid #eee; }
+    .item:hover { background:#f5f5f5; }
+    #admin-panel { margin-top:20px; border-top:1px solid #ccc; padding-top:10px; }
   </style>
 </head>
 <body>
 
-  <!-- 登入介面 -->
-  <div id="loginPage" class="active">
-    <form id="loginForm">
-      <h2>登入聊天室</h2>
-      <input type="text" id="username" placeholder="輸入暱稱或帳號" required />
-      <input type="password" id="password" placeholder="輸入密碼（管理員用）" />
-      <button type="submit">登入</button>
-    </form>
+<!-- 登入 / 註冊 -->
+<div id="page-login" class="active">
+  <h2>登入 / 註冊</h2>
+  <form id="login-form">
+    <input id="username" placeholder="帳號" required />
+    <input id="password" type="password" placeholder="密碼" required />
+    <button type="submit">登入</button>
+    <button type="button" id="btn-register">註冊</button>
+  </form>
+  <small>管理員帳號：<b>admin / 123456</b></small>
+</div>
+
+<!-- 主介面 -->
+<div id="page-chat">
+  <h2 id="welcome"></h2>
+  <div id="main">
+    <!-- 好友區 -->
+    <div>
+      <h3>好友</h3>
+      <div id="friends"></div>
+      <input id="new-friend" placeholder="好友帳號" />
+      <button id="btn-add-friend">新增好友</button>
+    </div>
+
+    <!-- 房間區 -->
+    <div>
+      <h3>聊天室</h3>
+      <div id="rooms"></div>
+      <input id="new-room" placeholder="房間名稱" />
+      <button id="btn-create-room">建立房間</button>
+      <div id="invite-area" style="display:none;">
+        <select id="invite-friend"></select>
+        <button id="btn-invite">邀請進房</button>
+      </div>
+    </div>
+
+    <!-- 聊天區 -->
+    <div id="chat-box">
+      <h3 id="room-title">請選房間</h3>
+      <div id="messages"></div>
+      <form id="msg-form">
+        <input id="msg" autocomplete="off" placeholder="輸入訊息..." />
+        <button>送出</button>
+      </form>
+    </div>
   </div>
 
-  <!-- 聊天介面 -->
-  <div id="chatPage">
-    <h2 id="welcomeText"></h2>
-    <div id="chatBox"></div>
-    <form id="msgForm">
-      <input id="msgInput" placeholder="輸入訊息..." autocomplete="off" required />
-      <button>送出</button>
-    </form>
+  <!-- 管理員 -->
+  <div id="admin-panel" style="display:none;">
+    <h3>管理員面板</h3>
+    <input id="admin-user" placeholder="帳號" />
+    <input id="admin-pass" placeholder="密碼" />
+    <button id="btn-admin-add">新增帳號</button>
+    <input id="admin-del-user" placeholder="欲刪除帳號" />
+    <button id="btn-admin-del">刪除帳號</button>
   </div>
+</div>
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script>
-    const loginPage = document.getElementById('loginPage');
-    const chatPage = document.getElementById('chatPage');
-    const loginForm = document.getElementById('loginForm');
-    const msgForm = document.getElementById('msgForm');
-    const msgInput = document.getElementById('msgInput');
-    const chatBox = document.getElementById('chatBox');
-    const welcomeText = document.getElementById('welcomeText');
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  /* ==== DOM ==== */
+  const loginPage = document.getElementById('page-login');
+  const chatPage  = document.getElementById('page-chat');
+  const welcome   = document.getElementById('welcome');
+  const friendsEl = document.getElementById('friends');
+  const roomsEl   = document.getElementById('rooms');
+  const messagesEl= document.getElementById('messages');
+  const roomTitle = document.getElementById('room-title');
+  const inviteArea= document.getElementById('invite-area');
+  const inviteSel = document.getElementById('invite-friend');
+  const adminPanel= document.getElementById('admin-panel');
 
-    const socket = io();
-    let currentUser = '';
+  /* ==== 狀態 ==== */
+  let token   = '';         // 用來在 header 帶認證
+  let socket  = null;
+  let myName  = '';
+  let currentRoom = '';
 
-    loginForm.addEventListener('submit', (e) => {
+  /* ==== 登入 / 註冊 ==== */
+  async function api(url,data){
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    return res.json();
+  }
+
+  document.getElementById('login-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const username=usernameEl.value.trim();
+    const password=passwordEl.value;
+    const r = await api('/api/login',{username,password});
+    if(r.ok){
+      token=r.token; myName=username;
+      afterLogin();
+    }else alert(r.msg);
+  });
+
+  document.getElementById('btn-register').addEventListener('click', async ()=>{
+    const username=usernameEl.value.trim();
+    const password=passwordEl.value;
+    const r = await api('/api/register',{username,password});
+    alert(r.ok?'註冊成功，請登入':r.msg);
+  });
+
+  const usernameEl=document.getElementById('username');
+  const passwordEl=document.getElementById('password');
+
+  /* ==== 登入後 ==== */
+  function afterLogin(){
+    loginPage.classList.remove('active');
+    chatPage.classList.add('active');
+    welcome.textContent=`歡迎, ${myName}`;
+    if(myName==='admin') adminPanel.style.display='block';
+
+    socket=io({auth:{token}});
+
+    socket.on('friends', list=>{
+      friendsEl.innerHTML='';
+      inviteSel.innerHTML='';
+      list.forEach(f=>{
+        const d=document.createElement('div');
+        d.className='item'; d.textContent=f;
+        d.onclick=()=>{};
+        friendsEl.appendChild(d);
+
+        const opt=document.createElement('option');
+        opt.value=f; opt.textContent=f; inviteSel.appendChild(opt);
+      });
+    });
+
+    socket.on('rooms', list=>{
+      roomsEl.innerHTML='';
+      list.forEach(r=>{
+        const d=document.createElement('div');
+        d.className='item'; d.textContent=r.name;
+        d.onclick=()=>joinRoom(r.id,r.name);
+        roomsEl.appendChild(d);
+      });
+    });
+
+    socket.on('message', data=>{
+      if(data.room!==currentRoom) return;
+      appendMsg(`${data.from}: ${data.text}`);
+    });
+
+    socket.on('system', msg=>appendMsg(`[系統] ${msg}`));
+
+    /* UI handlers */
+    document.getElementById('btn-add-friend').onclick = ()=> {
+      const f = document.getElementById('new-friend').value.trim();
+      if(f) socket.emit('addFriend',f);
+    };
+
+    document.getElementById('btn-create-room').onclick = ()=> {
+      const n = document.getElementById('new-room').value.trim();
+      if(n) socket.emit('createRoom',n);
+    };
+
+    document.getElementById('btn-invite').onclick = ()=> {
+      const f = inviteSel.value;
+      if(currentRoom && f) socket.emit('invite', {roomId:currentRoom, friend:f});
+    };
+
+    document.getElementById('msg-form').addEventListener('submit',e=>{
       e.preventDefault();
-      const username = document.getElementById('username').value.trim();
-      const password = document.getElementById('password').value;
-
-      if (!username) return;
-
-      // 管理員登入判斷
-      if (username === 'admin' && password === '123456') {
-        currentUser = '管理員';
-      } else if (username === 'admin') {
-        alert('管理員密碼錯誤');
-        return;
-      } else {
-        currentUser = username;
-      }
-
-      loginPage.classList.remove('active');
-      chatPage.classList.add('active');
-
-      welcomeText.textContent = `歡迎進入聊天室，${currentUser}`;
-      socket.emit('join', currentUser);
-    });
-
-    msgForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const text = msgInput.value.trim();
-      if (text) {
-        socket.emit('chat message', text);
-        msgInput.value = '';
+      const text=document.getElementById('msg').value.trim();
+      if(text && currentRoom){
+        socket.emit('chat', {roomId:currentRoom, text});
+        document.getElementById('msg').value='';
       }
     });
 
-    socket.on('chat message', (data) => {
-      const div = document.createElement('div');
-      div.textContent = `${data.name}: ${data.msg}`;
-      chatBox.appendChild(div);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    });
+    /* admin */
+    document.getElementById('btn-admin-add').onclick=()=>{
+      socket.emit('adminAdd', {
+        username: document.getElementById('admin-user').value.trim(),
+        password: document.getElementById('admin-pass').value
+      });
+    };
+    document.getElementById('btn-admin-del').onclick=()=>{
+      socket.emit('adminDel', document.getElementById('admin-del-user').value.trim());
+    };
+  }
 
-    socket.on('system', (msg) => {
-      const div = document.createElement('div');
-      div.textContent = msg;
-      div.style.color = 'gray';
-      chatBox.appendChild(div);
-    });
-  </script>
+  function joinRoom(id,name){
+    currentRoom=id;
+    roomTitle.textContent=`房間：${name}`;
+    messagesEl.innerHTML='';
+    inviteArea.style.display='block';
+    socket.emit('joinRoom',id);
+  }
 
+  function appendMsg(text){
+    const d=document.createElement('div');
+    d.textContent=text;
+    messagesEl.appendChild(d);
+    messagesEl.scrollTop=messagesEl.scrollHeight;
+  }
+</script>
 </body>
 </html>
