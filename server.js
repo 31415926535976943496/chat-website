@@ -1,29 +1,34 @@
 const express = require('express');
 const path = require('path');
-const http = require('http');
-const socketIo = require('socket.io');
-
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server);
+const server = require('http').createServer(app);
+const io = require('socket.io')(server);
 
-// 提供 public 資料夾的靜態資源
-app.use(express.static(path.join(__dirname, 'public')));
+const PORT = process.env.PORT || 10000; // ⚠️ Render 需要使用 process.env.PORT
 
-// Socket.io 處理
+const users = {};
+
+app.use(express.static(__dirname)); // 讓 index.html 被訪問到
+
 io.on('connection', (socket) => {
-  console.log('使用者連線');
+  socket.on('join', (name) => {
+    users[socket.id] = name;
+    socket.broadcast.emit('system', `${name} 加入了聊天室`);
+  });
 
   socket.on('chat message', (msg) => {
-    io.emit('chat message', msg);
+    io.emit('chat message', { name: users[socket.id], msg });
   });
 
   socket.on('disconnect', () => {
-    console.log('使用者離線');
+    if (users[socket.id]) {
+      io.emit('system', `${users[socket.id]} 離開了聊天室`);
+      delete users[socket.id];
+    }
   });
 });
 
-server.listen(3000, () => {
-  console.log('伺服器運行於 http://localhost:3000');
+server.listen(PORT, () => {
+  console.log(`伺服器啟動於 http://localhost:${PORT}`);
 });
 
