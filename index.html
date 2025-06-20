@@ -1,31 +1,284 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <title>好友制聊天室</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { font-family: sans-serif; margin: 0; background: #f0f0f0; }
-    #page-login, #page-chat { display: none; height: 100vh; justify-content: center; align-items: center; }
-    #page-login.active, #page-chat.active { display: flex; flex-direction: column; padding: 20px; }
+<meta charset="UTF-8" />
+<title>好友制聊天室</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0; background: #e8f0fe;
+    display: flex; height: 100vh;
+    color: #333;
+  }
+  #page-login, #page-chat {
+    width: 100%; display: none; flex-direction: column; align-items: center; justify-content: center;
+  }
+  #page-login.active, #page-chat.active { display: flex; }
 
-    h2 { margin: 10px 0; }
-    form { display: flex; flex-direction: column; gap: 10px; width: 260px; }
-    input, button, select { padding: 10px; font-size: 1em; }
-    #main { display: flex; gap: 20px; }
-    #friends, #rooms { width: 200px; background:#fff; border:1px solid #ccc; padding:10px; height:300px; overflow-y:auto; }
-    #chat-box { flex:1; display:flex; flex-direction:column; width:420px; }
-    #messages { flex:1; border:1px solid #ccc; background:#fff; padding:10px; overflow-y:auto; }
-    #msg-form { display:flex; gap:5px; margin-top:5px; }
-    #msg { flex:1; }
-    .item { padding:4px; cursor:pointer; border-bottom:1px solid #eee; }
-    .item:hover { background:#f5f5f5; }
-    #admin-panel { margin-top:20px; border-top:1px solid #ccc; padding-top:10px; }
-  </style>
+  /* 登入表單 */
+  #page-login form {
+    background: white; padding: 30px; border-radius: 10px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    display: flex; flex-direction: column; gap: 12px;
+    width: 280px;
+  }
+  #page-login input, #page-login button {
+    font-size: 1rem; padding: 10px;
+    border: 1px solid #ccc; border-radius: 5px;
+  }
+  #page-login button {
+    background: #3b82f6; color: white; border:none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  #page-login button:hover {
+    background: #2563eb;
+  }
+
+  /* 主介面 */
+  #page-chat {
+    width: 100%;
+    max-width: 1200px;
+    margin: 20px auto;
+  }
+  #welcome {
+    text-align: center;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  #main {
+    display: flex;
+    gap: 20px;
+    height: 70vh;
+    background: white;
+    box-shadow: 0 0 25px rgb(0 0 0 / 0.1);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  /* 左側好友列表 */
+  #friends-wrapper {
+    width: 220px;
+    background: #f9faff;
+    border-right: 1px solid #ddd;
+    display: flex; flex-direction: column;
+  }
+  #friends-header {
+    padding: 12px 15px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    border-bottom: 1px solid #ddd;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #friends {
+    flex: 1;
+    overflow-y: auto;
+  }
+  .friend-item {
+    padding: 8px 10px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+  }
+  .friend-item:hover {
+    background: #e0e7ff;
+  }
+  .btn-add-chat {
+    font-size: 1.2rem;
+    color: #2563eb;
+    cursor: pointer;
+    user-select: none;
+  }
+  .btn-add-chat:hover {
+    color: #1e40af;
+  }
+  #new-friend-wrapper {
+    padding: 10px 15px;
+    border-top: 1px solid #ddd;
+    display: flex;
+    gap: 8px;
+  }
+  #new-friend-wrapper input {
+    flex: 1;
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+  }
+  #btn-add-friend {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  #btn-add-friend:hover {
+    background: #2563eb;
+  }
+
+  /* 中間聊天室列表 */
+  #rooms-wrapper {
+    width: 280px;
+    background: #fefefe;
+    border-right: 1px solid #ddd;
+    display: flex; flex-direction: column;
+  }
+  #rooms-header {
+    padding: 12px 15px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    border-bottom: 1px solid #ddd;
+  }
+  #rooms {
+    flex: 1;
+    overflow-y: auto;
+  }
+  .room-item {
+    padding: 10px 15px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  .room-item:hover {
+    background: #dbeafe;
+  }
+  .room-item.active {
+    background: #bfdbfe;
+    font-weight: 700;
+  }
+  #new-room-wrapper {
+    padding: 10px 15px;
+    border-top: 1px solid #ddd;
+    display: flex; gap: 8px;
+  }
+  #new-room-wrapper input {
+    flex: 1;
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+  }
+  #btn-create-room {
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  #btn-create-room:hover {
+    background: #1d4ed8;
+  }
+
+  /* 右側聊天區 */
+  #chat-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  #room-title {
+    padding: 15px;
+    border-bottom: 1px solid #ddd;
+    font-weight: 700;
+    background: #f3f4f6;
+  }
+  #messages {
+    flex: 1;
+    padding: 15px;
+    background: #fff;
+    overflow-y: auto;
+    font-size: 0.95rem;
+    line-height: 1.4;
+  }
+  #msg-form {
+    display: flex;
+    padding: 10px 15px;
+    background: #f9fafb;
+    border-top: 1px solid #ddd;
+  }
+  #msg {
+    flex: 1;
+    padding: 10px;
+    font-size: 1rem;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+  }
+  #msg-form button {
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    margin-left: 10px;
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  #msg-form button:hover {
+    background: #1d4ed8;
+  }
+
+  /* 邀請區 */
+  #invite-area {
+    padding: 10px 15px;
+    border-top: 1px solid #ddd;
+    background: #fefefe;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  #invite-friend {
+    flex: 1;
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+  }
+  #btn-invite {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  #btn-invite:hover {
+    background: #2563eb;
+  }
+
+  /* 管理員面板 */
+  #admin-panel {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f3f4f6;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgb(0 0 0 / 0.1);
+  }
+  #admin-panel input, #admin-panel button {
+    padding: 8px;
+    margin: 5px 10px 5px 0;
+    font-size: 1rem;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+  }
+  #admin-panel button {
+    background: #ef4444;
+    color: white;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  #admin-panel button:hover {
+    background: #b91c1c;
+  }
+</style>
 </head>
 <body>
 
-<!-- 登入 / 註冊 -->
+<!-- 登入頁面 -->
 <div id="page-login" class="active">
   <h2>登入 / 註冊</h2>
   <form id="login-form">
@@ -37,24 +290,30 @@
   <small>管理員帳號：<b>admin / 123456</b></small>
 </div>
 
-<!-- 主介面 -->
+<!-- 聊天頁面 -->
 <div id="page-chat">
   <h2 id="welcome"></h2>
   <div id="main">
-    <!-- 好友區 -->
-    <div>
-      <h3>好友</h3>
+    <!-- 好友列表區 -->
+    <div id="friends-wrapper">
+      <div id="friends-header">
+        好友
+      </div>
       <div id="friends"></div>
-      <input id="new-friend" placeholder="好友帳號" />
-      <button id="btn-add-friend">新增好友</button>
+      <div id="new-friend-wrapper">
+        <input id="new-friend" placeholder="好友帳號" />
+        <button id="btn-add-friend">新增好友</button>
+      </div>
     </div>
 
-    <!-- 房間區 -->
-    <div>
-      <h3>聊天室</h3>
+    <!-- 聊天室列表 -->
+    <div id="rooms-wrapper">
+      <div id="rooms-header">聊天室</div>
       <div id="rooms"></div>
-      <input id="new-room" placeholder="房間名稱" />
-      <button id="btn-create-room">建立房間</button>
+      <div id="new-room-wrapper">
+        <input id="new-room" placeholder="房間名稱" />
+        <button id="btn-create-room">建立房間</button>
+      </div>
       <div id="invite-area" style="display:none;">
         <select id="invite-friend"></select>
         <button id="btn-invite">邀請進房</button>
@@ -72,7 +331,7 @@
     </div>
   </div>
 
-  <!-- 管理員 -->
+  <!-- 管理員面板 -->
   <div id="admin-panel" style="display:none;">
     <h3>管理員面板</h3>
     <input id="admin-user" placeholder="帳號" />
@@ -154,7 +413,20 @@
       inviteSel.innerHTML='';
       list.forEach(f=>{
         const d=document.createElement('div');
-        d.className='item'; d.textContent=f;
+        d.className='friend-item';
+        d.textContent=f;
+
+        // 新增聊天按鈕
+        const btn = document.createElement('span');
+        btn.className='btn-add-chat';
+        btn.textContent = '➕';
+        btn.title = '新增與好友的聊天房間';
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          createChatRoomWithFriend(f);
+        };
+
+        d.appendChild(btn);
         friendsEl.appendChild(d);
 
         const opt=document.createElement('option');
@@ -166,7 +438,9 @@
       roomsEl.innerHTML='';
       list.forEach(r=>{
         const d=document.createElement('div');
-        d.className='item'; d.textContent=r.name;
+        d.className='room-item';
+        if(r.id===currentRoom) d.classList.add('active');
+        d.textContent=r.name;
         d.onclick=()=>joinRoom(r.id,r.name);
         roomsEl.appendChild(d);
       });
@@ -231,6 +505,21 @@
     d.textContent=text;
     messagesEl.appendChild(d);
     messagesEl.scrollTop=messagesEl.scrollHeight;
+  }
+
+  /* 新增與好友的聊天房間（不可重名） */
+  function createChatRoomWithFriend(friend){
+    // 房間名稱規則： "和 {friend} 聊天"
+    const roomName = `和 ${friend} 聊天`;
+
+    // 先檢查當前聊天室是否已存在此名稱
+    const roomExists = Array.from(roomsEl.children).some(div => div.textContent.trim() === roomName);
+    if(roomExists){
+      alert('聊天室名稱已存在，不能重複建立。');
+      return;
+    }
+
+    socket.emit('createRoom', roomName);
   }
 </script>
 
