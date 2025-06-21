@@ -1,4 +1,4 @@
-// 完整的 server.js 配合 index.html 使用（已修正好友邀請對方無法即時收到的問題）
+// 完整的 server.js 配合 index.html 使用（已修正好友邀請即時通知，好友點擊直接開啟聊天室）
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -88,6 +88,16 @@ io.on('connection', (socket) => {
         s.emit('system', `你已被 ${socket.username} 加為好友`);
         break;
       }
+    }
+
+    // 自動建立雙方專屬聊天室
+    const roomName = `和 ${target} 聊天`;
+    const existingRoom = Object.values(rooms).find(r => r.name === roomName);
+    if (!existingRoom) {
+      const roomId = 'room-' + roomCount++;
+      rooms[roomId] = { name: roomName, users: [socket.username, target], messages: [] };
+      users[socket.username].rooms.push(roomId);
+      users[target].rooms.push(roomId);
     }
   });
 
