@@ -1,4 +1,4 @@
-// 完整的 server.js 配合上面 index.html 使用
+// 完整的 server.js 配合 index.html 使用（已修正好友邀請對方無法即時收到的問題）
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -12,7 +12,6 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(__dirname));
 
-// ===== 簡單記憶資料庫（請改為真正資料庫） =====
 let users = {
   admin: { password: '123456', friends: [], rooms: [] }
 };
@@ -36,7 +35,7 @@ app.post('/api/login', (req, res) => {
   return res.json({ ok: true, token: username });
 });
 
-// ===== Socket 連線 =====
+// ===== Socket 連線驗證 =====
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   if (!users[token]) return next(new Error('未授權'));
@@ -44,6 +43,7 @@ io.use((socket, next) => {
   next();
 });
 
+// ===== Socket 事件處理 =====
 io.on('connection', (socket) => {
   const user = users[socket.username];
   socket.emit('friends', user.friends);
@@ -73,10 +73,22 @@ io.on('connection', (socket) => {
 
   socket.on('addFriend', (target) => {
     if (!users[target]) return socket.emit('system', '使用者不存在');
+
+    // 雙方互加好友
     if (!user.friends.includes(target)) user.friends.push(target);
     if (!users[target].friends.includes(socket.username)) users[target].friends.push(socket.username);
+
     socket.emit('friends', user.friends);
     socket.emit('system', `已新增好友 ${target}`);
+
+    // 嘗試發送好友更新給對方（如果他在線上）
+    for (let [id, s] of io.of('/').sockets) {
+      if (s.username === target) {
+        s.emit('friends', users[target].friends);
+        s.emit('system', `你已被 ${socket.username} 加為好友`);
+        break;
+      }
+    }
   });
 
   socket.on('adminAdd', ({ username, password }) => {
