@@ -1,4 +1,3 @@
-cd /d D:\chat-website
 git init
 git add .
 git commit -m "Initial commit"
