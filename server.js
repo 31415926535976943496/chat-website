@@ -1,209 +1,177 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+
 app.use(express.json());
+app.use(express.static('public')); // 你前端放 public 資料夾或根目錄
 
-// 使用記憶體資料，實務請換成DB
+// 記憶體資料
 const users = {
-  admin: { password: 'admin123', isAdmin: true, friends: [], rooms: [] },
+  admin: { password: '123456', friends: [] }
 };
-const rooms = {}; // roomId: { id, name, members: [] }
-const userSockets = {}; // username => socket.id
+const rooms = []; // { id, name, members: [username] }
+let roomIdSeq = 1;
 
-// Helper 產生隨機 ID
-function genId() {
-  return Math.random().toString(36).slice(2, 10);
+// Helper: 產生房間 ID
+function genRoomId() {
+  return 'room-' + roomIdSeq++;
 }
 
-// API: 註冊
-app.post('/api/register', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.json({ ok: false, msg: '帳號密碼必填' });
-  if (users[username]) return res.json({ ok: false, msg: '帳號已存在' });
-  users[username] = { password, isAdmin: false, friends: [], rooms: [] };
-  return res.json({ ok: true });
-});
-
-// API: 登入
+// 登入 API
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
-  const user = users[username];
-  if (!user || user.password !== password) {
-    return res.json({ ok: false, msg: '帳號或密碼錯誤' });
-  }
-  return res.json({ ok: true, isAdmin: user.isAdmin });
+  if (!username || !password) return res.json({ ok: false, msg: '帳密不可空白' });
+  const u = users[username];
+  if (!u || u.password !== password) return res.json({ ok: false, msg: '帳號或密碼錯誤' });
+  // 簡單 token 用 username
+  res.json({ ok: true, token: username });
 });
 
-app.use(express.static('public')); // 你的前端檔案放 public 資料夾
+// 註冊 API
+app.post('/api/register', (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.json({ ok: false, msg: '帳密不可空白' });
+  if (users[username]) return res.json({ ok: false, msg: '帳號已存在' });
+  users[username] = { password, friends: [] };
+  res.json({ ok: true });
+});
 
-// 管理帳號新增刪除
-function isAdmin(username) {
-  return users[username]?.isAdmin;
-}
+// 管理員新增帳號
+io.on('connection', (socket) => {
+  // 驗證 token
+  socket.on('auth', (token) => {
+    if (!users[token]) {
+      socket.emit('system', '驗證失敗');
+      socket.disconnect();
+      return;
+    }
+    socket.username = token;
+    socket.emit('system', `歡迎 ${token}`);
 
-// 移除用戶資料，並從好友列表清除
-function removeUser(username) {
-  delete users[username];
-  // 從其他用戶好友清單移除
-  Object.values(users).forEach(u => {
-    u.friends = u.friends.filter(f => f !== username);
-    // 同時移除聊天室成員
-    u.rooms = u.rooms.filter(roomId => {
-      const room = rooms[roomId];
-      if (!room) return false;
-      room.members = room.members.filter(m => m !== username);
-      if (room.members.length === 0) delete rooms[roomId];
-      return rooms[roomId] !== undefined;
+    // 送出好友與聊天室列表
+    sendFriends(socket);
+    sendRooms(socket);
+
+    // 處理前端事件
+    socket.on('createRoom', (roomName) => {
+      // 一個人不能有重名聊天室
+      if (rooms.find(r => r.name === roomName && r.members.includes(socket.username))) {
+        socket.emit('system', '聊天室名稱已存在');
+        return;
+      }
+      const id = genRoomId();
+      const room = { id, name: roomName, members: [socket.username] };
+      rooms.push(room);
+      socket.join(id);
+      sendRoomsToAll(socket.username);
+      socket.emit('system', `已建立聊天室 ${roomName}`);
+    });
+
+    socket.on('joinRoom', (roomId) => {
+      const room = rooms.find(r => r.id === roomId);
+      if (!room) {
+        socket.emit('system', '聊天室不存在');
+        return;
+      }
+      if (!room.members.includes(socket.username)) room.members.push(socket.username);
+      socket.join(roomId);
+      socket.emit('system', `已加入聊天室 ${room.name}`);
+      sendRoomsToAll(socket.username);
+    });
+
+    socket.on('chat', ({ roomId, text }) => {
+      if (!text || !roomId) return;
+      const room = rooms.find(r => r.id === roomId);
+      if (!room || !room.members.includes(socket.username)) {
+        socket.emit('system', '無法發送訊息，未加入該聊天室');
+        return;
+      }
+      io.to(roomId).emit('message', { room: roomId, from: socket.username, text });
+    });
+
+    socket.on('addFriend', (friendName) => {
+      if (!users[friendName]) {
+        socket.emit('system', '好友不存在');
+        return;
+      }
+      if (friendName === socket.username) {
+        socket.emit('system', '不能加自己為好友');
+        return;
+      }
+      const userData = users[socket.username];
+      if (!userData.friends.includes(friendName)) {
+        userData.friends.push(friendName);
+      }
+      // 互加好友
+      const friendData = users[friendName];
+      if (!friendData.friends.includes(socket.username)) {
+        friendData.friends.push(socket.username);
+      }
+      sendFriendsToAll(socket.username);
+      sendFriendsToAll(friendName);
+      socket.emit('system', `已新增好友 ${friendName}`);
+    });
+
+    // 管理員操作新增帳號
+    socket.on('adminAdd', ({ username, password }) => {
+      if (socket.username !== 'admin') return socket.emit('system', '沒有權限');
+      if (!username || !password) return socket.emit('system', '帳密不可空白');
+      if (users[username]) return socket.emit('system', '帳號已存在');
+      users[username] = { password, friends: [] };
+      socket.emit('system', `已新增帳號 ${username}`);
+    });
+
+    // 管理員刪除帳號
+    socket.on('adminDel', (username) => {
+      if (socket.username !== 'admin') return socket.emit('system', '沒有權限');
+      if (!users[username]) return socket.emit('system', '帳號不存在');
+      // 從好友列表移除
+      Object.values(users).forEach(u => {
+        const idx = u.friends.indexOf(username);
+        if (idx !== -1) u.friends.splice(idx, 1);
+      });
+      // 刪除使用者本人
+      delete users[username];
+      // 移除該使用者聊天室成員
+      rooms.forEach(r => {
+        const idx = r.members.indexOf(username);
+        if (idx !== -1) r.members.splice(idx, 1);
+      });
+      socket.emit('system', `已刪除帳號 ${username}`);
+      sendFriendsToAll(socket.username);
     });
   });
-  // 刪除該用戶的聊天室
-  Object.keys(rooms).forEach(roomId => {
-    const room = rooms[roomId];
-    room.members = room.members.filter(m => m !== username);
-    if (room.members.length === 0) delete rooms[roomId];
-  });
+});
+
+// 輸出好友清單給該使用者
+function sendFriends(socket) {
+  const userData = users[socket.username];
+  if (!userData) return;
+  socket.emit('friends', userData.friends);
+}
+// 送給所有有連線的該用戶（多裝置時）
+function sendFriendsToAll(username) {
+  for (const [id, s] of io.of('/').sockets) {
+    if (s.username === username) sendFriends(s);
+  }
+}
+// 輸出聊天室給該使用者（有該人為成員）
+function sendRooms(socket) {
+  if (!users[socket.username]) return;
+  const list = rooms.filter(r => r.members.includes(socket.username)).map(r => ({ id: r.id, name: r.name }));
+  socket.emit('rooms', list);
+}
+// 送給所有連線該用戶
+function sendRoomsToAll(username) {
+  for (const [id, s] of io.of('/').sockets) {
+    if (s.username === username) sendRooms(s);
+  }
 }
 
-io.use((socket, next) => {
-  const username = socket.handshake.auth.token;
-  if (!username || !users[username]) {
-    return next(new Error('未授權'));
-  }
-  socket.username = username;
-  next();
-});
-
-io.on('connection', (socket) => {
-  userSockets[socket.username] = socket.id;
-
-  // 傳送好友與聊天室列表
-  function emitLists() {
-    const user = users[socket.username];
-    socket.emit('friends', user.friends);
-    // rooms資料轉陣列且帶id與name
-    const userRooms = user.rooms.map(rid => rooms[rid]).filter(r => r);
-    socket.emit('rooms', userRooms);
-  }
-  emitLists();
-
-  // 加好友（互相加入）
-  socket.on('addFriend', (friendName) => {
-    if (!friendName || friendName === socket.username) {
-      socket.emit('system', '無效的好友名稱');
-      return;
-    }
-    if (!users[friendName]) {
-      socket.emit('system', '找不到此用戶');
-      return;
-    }
-    const user = users[socket.username];
-    if (!user.friends.includes(friendName)) user.friends.push(friendName);
-    const friend = users[friendName];
-    if (!friend.friends.includes(socket.username)) friend.friends.push(socket.username);
-
-    emitLists();
-    // 對方在線的話也更新好友列表
-    const friendSocketId = userSockets[friendName];
-    if (friendSocketId) {
-      io.to(friendSocketId).emit('friends', friend.friends);
-    }
-    socket.emit('system', `已成功加好友 ${friendName}`);
-  });
-
-  // 創建聊天室（不能重名）
-  socket.on('createRoom', (roomName) => {
-    if (!roomName) {
-      socket.emit('system', '聊天室名稱不可空白');
-      return;
-    }
-    if (Object.values(rooms).some(r => r.name === roomName)) {
-      socket.emit('system', '聊天室名稱已存在');
-      return;
-    }
-    const roomId = genId();
-    rooms[roomId] = { id: roomId, name: roomName, members: [socket.username] };
-    users[socket.username].rooms.push(roomId);
-
-    emitLists();
-    socket.emit('system', `聊天室 ${roomName} 已建立`);
-  });
-
-  // 加入聊天室
-  socket.on('joinRoom', (roomId) => {
-    if (!rooms[roomId]) {
-      socket.emit('system', '聊天室不存在');
-      return;
-    }
-    if (!rooms[roomId].members.includes(socket.username)) {
-      rooms[roomId].members.push(socket.username);
-      users[socket.username].rooms.push(roomId);
-      emitLists();
-    }
-    socket.join(roomId);
-    socket.emit('system', `加入聊天室：${rooms[roomId].name}`);
-  });
-
-  // 聊天訊息
-  socket.on('chat', ({ roomId, text }) => {
-    if (!rooms[roomId]) {
-      socket.emit('system', '聊天室不存在');
-      return;
-    }
-    if (!rooms[roomId].members.includes(socket.username)) {
-      socket.emit('system', '你不在此聊天室中');
-      return;
-    }
-    io.to(roomId).emit('message', { from: socket.username, text });
-  });
-
-  // 管理員新增帳號
-  socket.on('adminAdd', ({ username: newUser, password }) => {
-    if (!isAdmin(socket.username)) {
-      socket.emit('system', '沒有管理員權限');
-      return;
-    }
-    if (users[newUser]) {
-      socket.emit('system', '帳號已存在');
-      return;
-    }
-    users[newUser] = { password, isAdmin: false, friends: [], rooms: [] };
-    socket.emit('system', `成功新增帳號 ${newUser}`);
-  });
-
-  // 管理員刪除帳號
-  socket.on('adminDel', (delUser) => {
-    if (!isAdmin(socket.username)) {
-      socket.emit('system', '沒有管理員權限');
-      return;
-    }
-    if (!users[delUser]) {
-      socket.emit('system', '帳號不存在');
-      return;
-    }
-    if (delUser === socket.username) {
-      socket.emit('system', '無法刪除自己');
-      return;
-    }
-    removeUser(delUser);
-    socket.emit('system', `成功刪除帳號 ${delUser}`);
-
-    // 如果該用戶在線，通知並斷線
-    const sId = userSockets[delUser];
-    if (sId) {
-      io.to(sId).emit('system', '你的帳號已被刪除');
-      io.sockets.sockets.get(sId)?.disconnect();
-    }
-  });
-
-  socket.on('disconnect', () => {
-    delete userSockets[socket.username];
-  });
-});
-
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+
